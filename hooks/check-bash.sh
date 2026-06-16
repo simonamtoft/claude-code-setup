@@ -25,12 +25,13 @@ if [[ -z "$cmd" ]]; then
   exit 0
 fi
 
-# Process / command substitution can hide non-readonly subcommands inside a
-# "readonly-looking" wrapper (e.g. `cat <(rm -rf x)`). Block outright — the
-# agent can split into separate Bash calls instead.
-if [[ "$cmd" == *'<('* || "$cmd" == *'>('* || "$cmd" == *'$('* || "$cmd" == *'`'* ]]; then
+# Backticks and <(…) / >(…) stay blocked outright — rare in practice and
+# harder to validate. $(...) is peeled below: if every inner command is
+# readonly, the substitution is replaced with a placeholder and the outer
+# command continues through the normal allowlist checks.
+if [[ "$cmd" == *'<('* || "$cmd" == *'>('* || "$cmd" == *'`'* ]]; then
   cat >&2 <<EOF
-Hook: process/command substitution (\$(...), <(...), >(...), \`...\`) blocked.
+Hook: process substitution (<(...), >(...)) or backticks blocked.
 Use separate Bash calls instead.
 
 Command: ${cmd}
@@ -104,7 +105,7 @@ _is_readonly_segment() {
   fi
 
   case "$tok1" in
-    ls|pwd|cat|head|tail|wc|file|stat|grep|rg|ripgrep|which|type|echo|printf|date|whoami|hostname|uname|tree|jq|yq|xmllint|column|sort|uniq|cut|awk|sed|tr|paste|xxd|od|env|true|false|test|\[|mkdir|fp|bunx|npx)
+    ls|pwd|cat|head|tail|wc|file|stat|grep|rg|ripgrep|which|type|echo|printf|date|whoami|hostname|uname|tree|jq|yq|xmllint|column|sort|uniq|cut|awk|sed|tr|paste|xxd|od|env|true|false|test|\[|mkdir|fp|bunx|npx|cd|basename|dirname)
       return 0 ;;
     find)
       if [[ "$seg" == *" -delete"* || "$seg" == *" -exec"* || "$seg" == *" -execdir"* || "$seg" == *" -ok"* || "$seg" == *" -okdir"* ]]; then
@@ -149,7 +150,9 @@ _is_rm_in_scope() {
     fi
     resolved=$(_normalize_path "$resolved")
 
-    if [[ "$resolved" != "$PWD/"* && "$resolved" != "$PWD" ]]; then
+    if [[ "$resolved" != "$PWD/"* && "$resolved" != "$PWD" \
+       && "$resolved" != "$HOME/.claude/plans/"* \
+       && "$resolved" != /tmp/* && "$resolved" != /private/tmp/* ]]; then
       return 1
     fi
   done
@@ -246,6 +249,52 @@ _is_permitted_segment() {
   return 1
 }
 
+# Peel $(...) substitutions: if every inner command is readonly (e.g.
+# $(git rev-parse …), $(basename …)), replace each with a placeholder so the
+# outer command can flow through the normal allowlist. If any inner command
+# isn't readonly, block the whole command.
+if [[ "$cmd" == *'$('* ]]; then
+  _peel_subst() {
+    local s="$1" out="" depth start inner rest ch i=0
+    while [[ "$s" == *'$('* ]] && (( i < 32 )); do
+      (( i++ ))
+      start="${s%%\$\(*}"
+      rest="${s#"$start"\$\(}"
+      depth=1
+      inner=""
+      while [[ -n "$rest" && $depth -gt 0 ]]; do
+        ch="${rest:0:1}"
+        rest="${rest:1}"
+        if   [[ "$ch" == '(' ]]; then depth=$((depth+1)); inner+="$ch"
+        elif [[ "$ch" == ')' ]]; then depth=$((depth-1)); [[ $depth -gt 0 ]] && inner+="$ch"
+        else inner+="$ch"
+        fi
+      done
+      [[ $depth -ne 0 ]] && { printf '%s' "__BAD__"; return; }
+      if _is_readonly_segment "$inner"; then
+        s="${start}__SUBST__${rest}"
+      else
+        printf '%s' "__BAD__"
+        return
+      fi
+    done
+    printf '%s' "$s"
+  }
+  peeled=$(_peel_subst "$cmd")
+  if [[ "$peeled" == "__BAD__" ]]; then
+    cat >&2 <<EOF
+Hook: \$(...) blocked — inner command is not in the readonly allowlist.
+
+Command: ${cmd}
+
+Allowed inner commands include: ls, pwd, cat, head, tail, wc, stat, grep, rg, git status|diff|log|show|rev-parse|config|ls-files|blame, jq, yq, basename, dirname, date, echo, printf, cd, fp.
+Split into separate Bash calls if you need a non-readonly subcommand.
+EOF
+    exit 2
+  fi
+  cmd="$peeled"
+fi
+
 # Compound? Split on |, &&, ||, ; and validate each segment.
 # First strip the contents of single- and double-quoted strings to a
 # placeholder so e.g. `grep -E '(Edit|Write)'` isn't mis-split on the `|`
@@ -308,7 +357,7 @@ Command: ${cmd}
 
 Print the command in a fenced \`\`\`bash block and ask the user to run it, then wait for the output.
 
-Allowed without asking: ls, pwd, cat, head, tail, wc, stat, grep, rg, find (no -delete/-exec/-ok), mkdir, rm (paths under \$PWD only), cp|mv|tee|touch|ln|chmod|chown (every required path must resolve under /tmp), git status|diff|log|show|branch|remote|stash|rev-parse|config|ls-files|blame, gh pr view|diff|list|checks, gh run view|list|view-log, gh issue view|list, bunx, npx, which, type, command -v, echo, printf, date, whoami, hostname, uname, tree, jq, yq, xmllint, sort, uniq, cut, awk, sed, tr, paste, column, xxd, od, env, true, false, test. Compound commands (|, &&, ||, ;) are allowed when every segment is in this hook's allowlist; process/command substitution (\$(...), <(...), \`...\`) is always blocked.
+Allowed without asking: ls, pwd, cat, head, tail, wc, stat, grep, rg, find (no -delete/-exec/-ok), mkdir, cd, basename, dirname, rm (paths under \$PWD, ~/.claude/plans/, or /tmp/), cp|mv|tee|touch|ln|chmod|chown (every required path must resolve under /tmp), git status|diff|log|show|branch|remote|stash|rev-parse|config|ls-files|blame, gh pr view|diff|list|checks, gh run view|list|view-log, gh issue view|list, bunx, npx, which, type, command -v, echo, printf, date, whoami, hostname, uname, tree, jq, yq, xmllint, sort, uniq, cut, awk, sed, tr, paste, column, xxd, od, env, true, false, test. Compound commands (|, &&, ||, ;) are allowed when every segment is in this hook's allowlist. \$(...) is allowed when the inner command is readonly; \`...\`, <(...), >(...) are always blocked.
 
 To bypass for a single session, start it with CLAUDE_HOOK_DISABLE=1 in the environment.
 EOF
