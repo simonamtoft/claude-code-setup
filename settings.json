@@ -127,5 +127,6 @@
   },
   "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
-  "theme": "custom:dd-pink"
+  "theme": "custom:dd-purple",
+  "editorMode": "normal"
 }
