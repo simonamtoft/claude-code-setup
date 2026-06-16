@@ -9,6 +9,7 @@
 !/hooks/
 !/commands/
 !/skills/
+!/themes/
 !README.md
 
 # Plugins: keep declarative config, drop caches/clones

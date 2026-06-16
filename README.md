@@ -22,3 +22,21 @@ My personal preferences for working with Claude Code as a consultant across many
 Also something to ensure documentation is updated.
 
 When a command finishes running with !, Claude should start again.
+
+## Random theme on `claude` launch
+
+Lives in `~/.zshrc` (outside this repo). Picks a random theme from `themes/` and rewrites `settings.json` before exec'ing `claude`:
+
+```bash
+claude() {
+  local themes=(dd-blue dd-orange dd-purple dd-cyan dd-pink dd-green)
+  local pick=${themes[$((RANDOM % ${#themes[@]} + 1))]}
+  local settings="$HOME/.claude/settings.json"
+  local tmp
+  tmp=$(mktemp)
+  jq --arg t "custom:$pick" '.theme = $t' "$settings" > "$tmp" && mv "$tmp" "$settings"
+  command claude "$@"
+}
+```
+
+Only fires for terminal `claude` launches.

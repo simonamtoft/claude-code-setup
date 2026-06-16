@@ -68,6 +68,7 @@
     ],
     "defaultMode": "plan"
   },
+  "model": "opus",
   "skillOverrides": {
     "migrate-command-to-repository": "name-only",
     "migrate-nhibernate-service-to-repository": "name-only",
@@ -124,7 +125,7 @@
     "frontend-design@claude-plugins-official": true,
     "playwright@claude-plugins-official": true
   },
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
-  "theme": "dark-daltonized"
+  "theme": "custom:dd-pink"
 }
