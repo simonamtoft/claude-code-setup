@@ -1,0 +1,130 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//tmp/**)",
+      "Read(//private/tmp/**)",
+      "Read(//var/folders/**)",
+      "Write(//tmp/**)",
+      "Edit(//tmp/**)",
+      "Bash(docker logs:*)",
+      "Bash(curl -s *)",
+      "Bash(curl -sS *)",
+      "Bash(command -v *)",
+      "Bash(brew list *)",
+      "Bash(brew info *)",
+      "Bash(brew --version)",
+      "Bash(npm ls *)",
+      "Bash(npm list *)",
+      "Bash(npm view *)",
+      "Bash(npm --version)",
+      "Bash(pip show *)",
+      "Bash(pip list *)",
+      "Bash(pip --version)",
+      "Bash(uv pip *)",
+      "Bash(uv --version)",
+      "Bash(pnpm ls *)",
+      "Bash(pnpm list *)",
+      "Bash(pnpm --version)",
+      "Bash(yarn list *)",
+      "Bash(yarn --version)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet --info)",
+      "Bash(dotnet --list-sdks)",
+      "Bash(dotnet --list-runtimes)",
+      "Bash(go version)",
+      "Bash(cargo --version)",
+      "Bash(deno --version)",
+      "Bash(fp:*)",
+      "Bash(npx nx test *)",
+      "Bash(npx nx lint *)",
+      "Bash(npx nx typecheck *)",
+      "Bash(npx nx build *)",
+      "Bash(npx nx e2e *)",
+      "Bash(bunx:*)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gcloud/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.netrc)",
+      "Read(~/.pypirc)",
+      "Read(~/.npmrc)",
+      "Read(~/.gnupg/**)",
+      "Read(~/Library/Keychains/**)",
+      "Read(~/Library/Application Support/Google/Chrome/**)",
+      "Read(~/Library/Application Support/Firefox/**)",
+      "Read(//**/.env)",
+      "Read(//**/.env.*)",
+      "Read(//**/*.pem)",
+      "Read(//**/*.key)",
+      "Read(//**/id_rsa)",
+      "Read(//**/id_ed25519)",
+      "Read(//**/credentials.json)",
+      "Read(//**/service-account*.json)"
+    ],
+    "defaultMode": "plan"
+  },
+  "skillOverrides": {
+    "migrate-command-to-repository": "name-only",
+    "migrate-nhibernate-service-to-repository": "name-only",
+    "openapi-domain-rename": "name-only",
+    "legacy-code-modularization": "name-only",
+    "module-structure-validation": "name-only",
+    "decouple-module-consumers": "name-only",
+    "consolidate-automapper-profiles": "name-only",
+    "remove-getservice-calls": "name-only",
+    "remove-unused-registrations": "name-only",
+    "frontend-design:frontend-design": "name-only",
+    "claude-api": "name-only",
+    "create-skill-from-session-data": "name-only",
+    "scaffold-one-off-script": "name-only"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/session-context.sh",
+            "statusMessage": "Loading session context..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/check-bash.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/check-edit-scope.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash $HOME/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true
+  },
+  "effortLevel": "xhigh",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-daltonized"
+}
