@@ -103,15 +103,6 @@
   },
   "model": "opus",
   "skillOverrides": {
-    "migrate-command-to-repository": "name-only",
-    "migrate-nhibernate-service-to-repository": "name-only",
-    "openapi-domain-rename": "name-only",
-    "legacy-code-modularization": "name-only",
-    "module-structure-validation": "name-only",
-    "decouple-module-consumers": "name-only",
-    "consolidate-automapper-profiles": "name-only",
-    "remove-getservice-calls": "name-only",
-    "remove-unused-registrations": "name-only",
     "frontend-design:frontend-design": "name-only",
     "claude-api": "name-only",
     "create-skill-from-session-data": "name-only",
@@ -160,6 +151,6 @@
   },
   "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
-  "theme": "custom:dd-blue",
+  "theme": "custom:dd-pink",
   "editorMode": "normal"
 }
