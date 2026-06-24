@@ -21,6 +21,8 @@ Before implementing:
 - No error handling for impossible scenarios.
 - If you write 200 lines and it could be 50, rewrite it.
 
+When you deliberately take a simpler-but-bounded path, mark it with one `shortcut:` comment naming the ceiling and the upgrade trigger - e.g. `// shortcut: O(n²) scan, swap to an index when >1k rows`. A shortcut with no named trigger tends to become permanent; only omit the trigger when there genuinely isn't one.
+
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
 ## 3. Surgical Changes

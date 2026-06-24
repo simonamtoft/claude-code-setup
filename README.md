@@ -40,3 +40,7 @@ claude() {
 ```
 
 Only fires for terminal `claude` launches.
+
+## Resources
+- https://github.com/anthropics/claude-code/tree/main/plugins/pr-review-toolkit
+- https://github.com/DietrichGebert/ponytail
