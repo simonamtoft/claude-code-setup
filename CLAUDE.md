@@ -62,3 +62,8 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+Two rules for the loop itself:
+
+- **Verification is external, not self-asserted.** Actually run the check — test, typecheck, lint, the app. Don't declare success from reading the diff; self-judged correctness is unreliable (one study measured ~18% false "correct" verdicts when the model graded its own output).
+- **Feed the specific failure back.** When a check fails, capture the exact signal — which assertion, which type error, which dependency — and act on *that*, rather than re-guessing from scratch. The richer and more specific the feedback, the faster the loop converges.

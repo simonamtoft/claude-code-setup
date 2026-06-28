@@ -139,6 +139,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/verify-edit.sh"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
@@ -149,7 +160,7 @@
     "frontend-design@claude-plugins-official": true,
     "playwright@claude-plugins-official": true
   },
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "skipDangerousModePermissionPrompt": true,
   "theme": "custom:dd-pink",
   "editorMode": "normal"

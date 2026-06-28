@@ -40,6 +40,37 @@ Example `scope.allow`:
 /Users/siap/.claude
 ```
 
+### `verify-edit.sh` — post-edit verification feedback loop
+
+A `PostToolUse` hook on `Edit` / `Write` / `MultiEdit` that closes the edit loop with an *external* checker instead of letting the model self-assess correctness. After an edit it runs the project's verifier on the changed file; if the verifier fails, the hook relays the diagnostics on stderr and `exit 2`, so Claude sees the concrete errors and fixes them before moving on. (Motivated by arXiv 2511.00592 / CompPilot: feedback-grounded loops beat open-loop, and an external ground-truth checker beats LLM self-verification.)
+
+Verifier resolution is **optional and per-project**, in precedence order:
+
+1. `${CLAUDE_PROJECT_DIR}/.claude/verify.sh` — run as `verify.sh "<file>"`.
+2. else a `verify` task in `Taskfile.yml` / `Taskfile.yaml` at the project root (when the `task` CLI is installed and `task --list-all` shows a `verify` task) — run as `task verify -- "<file>"` (the file is exposed via `{{.CLI_ARGS}}`).
+
+**If neither is present, the hook is a no-op** (default-noop, like `check-edit-scope.sh`'s default-allow), so unrelated repos are unaffected. Keep the verifier file-scoped and fast — it runs after every edit.
+
+Example `.claude/verify.sh`:
+
+```bash
+#!/usr/bin/env bash
+# receives the edited file path as $1; non-zero exit = fix needed.
+case "$1" in
+  *.ts|*.tsx|*.js|*.jsx) exec npx eslint "$1" ;;
+  *) exit 0 ;;
+esac
+```
+
+Example `Taskfile.yml` task:
+
+```yaml
+tasks:
+  verify:
+    cmds:
+      - npx eslint {{.CLI_ARGS}}
+```
+
 ## Bypass
 
 For an exceptional session where you genuinely want the agent to run commands or edit anywhere, start Claude Code with:
@@ -52,7 +83,7 @@ Both hooks short-circuit when this env var is `1`. No in-conversation bypass exi
 
 ## Wiring
 
-`~/.claude/settings.json` has a `hooks.PreToolUse` block matching `Bash` → `check-bash.sh` and `Edit|Write|MultiEdit|NotebookEdit` → `check-edit-scope.sh`. Edit that block to disable temporarily; delete it to remove.
+`~/.claude/settings.json` has a `hooks.PreToolUse` block matching `Bash` → `check-bash.sh` and `Edit|Write|MultiEdit|NotebookEdit` → `check-edit-scope.sh`, and a `hooks.PostToolUse` block matching `Edit|Write|MultiEdit` → `verify-edit.sh`. Edit those blocks to disable temporarily; delete them to remove.
 
 ## Dependencies
 
@@ -72,4 +103,8 @@ echo '{"tool_input":{"command":"nx test myapp"}}'            | ~/.claude/hooks/c
 echo '{"tool_input":{"command":"bunx $(echo foo)"}}'         | ~/.claude/hooks/check-bash.sh; echo $?   # 2  (cmd substitution always blocked)
 CLAUDE_PROJECT_DIR=/some/repo echo '{"tool_input":{"file_path":"/tmp/x"}}' \
   | ~/.claude/hooks/check-edit-scope.sh; echo $?
+
+# verify-edit.sh: no verifier in the project -> no-op (0)
+CLAUDE_PROJECT_DIR=/tmp/none echo '{"tool_input":{"file_path":"/tmp/x.ts"}}' \
+  | ~/.claude/hooks/verify-edit.sh; echo $?   # 0
 ```
