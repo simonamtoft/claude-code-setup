@@ -13,6 +13,24 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib-secret-paths.sh"
+
+# _touches_secret SEGMENT -> 0 if any path-like token resolves to a protected
+# secret (see lib-secret-paths.sh). Guards the readonly/tmp/rm allow paths so
+# secrets can't be read or copied out via an otherwise-permitted command.
+_touches_secret() {
+  local seg="$1" tok
+  local -a toks
+  read -ra toks <<< "$seg"
+  for tok in "${toks[@]}"; do
+    [[ "$tok" == -* ]] && continue
+    tok="${tok#[\"\']}"; tok="${tok%[\"\']}"   # strip one layer of surrounding quotes
+    [[ -z "$tok" ]] && continue
+    path_is_secret "$tok" && return 0
+  done
+  return 1
+}
+
 # Emit a PreToolUse "allow" decision so Claude skips the permission prompt
 # for commands the hook recognizes as readonly.
 _emit_allow() {
@@ -50,6 +68,9 @@ _is_readonly_segment() {
   # ltrim
   seg="${seg#"${seg%%[![:space:]]*}"}"
   [[ -z "$seg" ]] && return 0
+
+  # A secret path anywhere in the segment disqualifies it from the allowlist.
+  _touches_secret "$seg" && return 1
 
   read -r tok1 tok2 tok3 _rest <<< "$seg"
   pair="${tok1} ${tok2}"
@@ -242,6 +263,7 @@ _is_write_in_tmp() {
 }
 
 _is_permitted_segment() {
+  _touches_secret "$1"       && return 1
   _is_readonly_segment "$1"  && return 0
   _is_rm_in_scope "$1"       && return 0
   _is_bash_local_script "$1" && return 0
