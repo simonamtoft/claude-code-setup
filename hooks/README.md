@@ -40,26 +40,25 @@ Example `scope.allow`:
 /Users/siap/.claude
 ```
 
-### `verify-edit.sh` — post-edit verification feedback loop
+### `verify-turn.sh` — end-of-turn verification feedback loop
 
-A `PostToolUse` hook on `Edit` / `Write` / `MultiEdit` that closes the edit loop with an *external* checker instead of letting the model self-assess correctness. After an edit it runs the project's verifier on the changed file; if the verifier fails, the hook relays the diagnostics on stderr and `exit 2`, so Claude sees the concrete errors and fixes them before moving on. (Motivated by arXiv 2511.00592 / CompPilot: feedback-grounded loops beat open-loop, and an external ground-truth checker beats LLM self-verification.)
+A `Stop` hook that closes the loop with an *external* checker instead of letting the model self-assess correctness. When a turn completes it runs the project's verifier once; if the verifier fails, the hook relays the diagnostics on stderr and `exit 2`, so Claude sees the concrete errors and fixes them before finishing. (Motivated by arXiv 2511.00592 / CompPilot: feedback-grounded loops beat open-loop, and an external ground-truth checker beats LLM self-verification.)
+
+It runs at the natural "I'm done" boundary — **not after every edit** — so intermediate multi-edit states aren't flagged. `stop_hook_active` is honored: if a turn was already extended by a verification failure, the next stop is allowed through, preventing an infinite verify→fix→verify loop.
 
 Verifier resolution is **optional and per-project**, in precedence order:
 
-1. `${CLAUDE_PROJECT_DIR}/.claude/verify.sh` — run as `verify.sh "<file>"`.
-2. else a `verify` task in `Taskfile.yml` / `Taskfile.yaml` at the project root (when the `task` CLI is installed and `task --list-all` shows a `verify` task) — run as `task verify -- "<file>"` (the file is exposed via `{{.CLI_ARGS}}`).
+1. `${CLAUDE_PROJECT_DIR}/.claude/verify.sh` — run as `verify.sh` (from the project root).
+2. else a `verify` task in `Taskfile.yml` / `Taskfile.yaml` at the project root (when the `task` CLI is installed and `task --list-all` shows a `verify` task) — run as `task verify`.
 
-**If neither is present, the hook is a no-op** (default-noop, like `check-edit-scope.sh`'s default-allow), so unrelated repos are unaffected. Keep the verifier file-scoped and fast — it runs after every edit.
+**If neither is present, the hook is a no-op** (default-noop, like `check-edit-scope.sh`'s default-allow), so unrelated repos are unaffected. Because it runs once per turn, a project-wide check (lint + typecheck) is fine here.
 
 Example `.claude/verify.sh`:
 
 ```bash
 #!/usr/bin/env bash
-# receives the edited file path as $1; non-zero exit = fix needed.
-case "$1" in
-  *.ts|*.tsx|*.js|*.jsx) exec npx eslint "$1" ;;
-  *) exit 0 ;;
-esac
+# non-zero exit = something to fix before finishing.
+npx tsc --noEmit && npx eslint .
 ```
 
 Example `Taskfile.yml` task:
@@ -68,7 +67,8 @@ Example `Taskfile.yml` task:
 tasks:
   verify:
     cmds:
-      - npx eslint {{.CLI_ARGS}}
+      - npx tsc --noEmit
+      - npx eslint .
 ```
 
 ## Bypass
@@ -83,7 +83,7 @@ Both hooks short-circuit when this env var is `1`. No in-conversation bypass exi
 
 ## Wiring
 
-`~/.claude/settings.json` has a `hooks.PreToolUse` block matching `Bash` → `check-bash.sh` and `Edit|Write|MultiEdit|NotebookEdit` → `check-edit-scope.sh`, and a `hooks.PostToolUse` block matching `Edit|Write|MultiEdit` → `verify-edit.sh`. Edit those blocks to disable temporarily; delete them to remove.
+`~/.claude/settings.json` has a `hooks.PreToolUse` block matching `Bash` → `check-bash.sh` and `Edit|Write|MultiEdit|NotebookEdit` → `check-edit-scope.sh`, and a `hooks.Stop` block → `verify-turn.sh`. Edit those blocks to disable temporarily; delete them to remove.
 
 ## Dependencies
 
@@ -104,7 +104,7 @@ echo '{"tool_input":{"command":"bunx $(echo foo)"}}'         | ~/.claude/hooks/c
 CLAUDE_PROJECT_DIR=/some/repo echo '{"tool_input":{"file_path":"/tmp/x"}}' \
   | ~/.claude/hooks/check-edit-scope.sh; echo $?
 
-# verify-edit.sh: no verifier in the project -> no-op (0)
-CLAUDE_PROJECT_DIR=/tmp/none echo '{"tool_input":{"file_path":"/tmp/x.ts"}}' \
-  | ~/.claude/hooks/verify-edit.sh; echo $?   # 0
+# verify-turn.sh: no verifier in the project -> no-op (0)
+CLAUDE_PROJECT_DIR=/tmp/none echo '{"stop_hook_active":false}' \
+  | ~/.claude/hooks/verify-turn.sh; echo $?   # 0
 ```

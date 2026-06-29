@@ -140,13 +140,12 @@
         ]
       }
     ],
-    "PostToolUse": [
+    "Stop": [
       {
-        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/verify-edit.sh"
+            "command": "$HOME/.claude/hooks/verify-turn.sh"
           }
         ]
       }
