@@ -56,6 +56,11 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/verify-turn.sh"
+          },
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/hooks/claude-md-refcheck.py",
+            "statusMessage": "Checking CLAUDE.md references..."
           }
         ]
       }
@@ -69,8 +74,8 @@
     "frontend-design@claude-plugins-official": true,
     "playwright@claude-plugins-official": true
   },
-  "effortLevel": "low",
+  "effortLevel": "medium",
   "skipDangerousModePermissionPrompt": true,
-  "theme": "custom:dd-orange",
+  "theme": "custom:dd-green",
   "editorMode": "normal"
 }

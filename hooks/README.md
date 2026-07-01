@@ -79,6 +79,18 @@ tasks:
       - npx eslint .
 ```
 
+### `claude-md-refcheck.py` — CLAUDE.md package-map drift check
+
+A second `Stop` hook (runs alongside `verify-turn.sh`) that catches *documentation* drift: `CLAUDE.md` files name files in backticks to describe a directory's layout (``routes/me.py``, ``VerdictBar.tsx``), and those maps rot when files are renamed or deleted. The hook scans every `CLAUDE.md` at/below the scan root (`CLAUDE_PROJECT_DIR`, else cwd; or an explicit path argument), extracts backticked filename tokens, and on any that no longer resolve to a real file relays them on stderr and `exit 2` — so Claude sees the concrete broken refs and can fix the doc before finishing.
+
+**Deterministic half only.** It catches "named file doesn't exist" (the class that deleted-but-still-documented `VerdictBar.tsx` falls into). Stale *prose* ("step 6 in progress" after step 6 landed) is not mechanically checkable and is left to a per-project CI audit (e.g. im-proposal's `.github/workflows/doc-drift.yml`, which runs the same idea through its model gateway).
+
+**Conservative by construction** — false positives train you to ignore it:
+- placeholder tokens (`step_N.py`, globs, `<...>` ranges) are skipped;
+- a token resolves if it exists at the path OR its basename exists anywhere under the root, so a doc that names a file by basename never false-flags.
+
+**Fires at most once per session** (a sentinel at `$TMPDIR/claude-md-refcheck-<session_id>`), so an unaddressed or intentional drift doesn't nag every turn. **No-op** when there's no `CLAUDE.md` under the root, so unrelated repos are unaffected. Honors `CLAUDE_HOOK_DISABLE=1`. Requires `python3` on `PATH` (invoked as `python3 …/claude-md-refcheck.py`, so the exec bit is irrelevant).
+
 ## Bypass
 
 For an exceptional session where you genuinely want the agent to run commands or edit anywhere, start Claude Code with:
@@ -93,7 +105,7 @@ All of these *user* hooks short-circuit when this env var is `1`. No in-conversa
 
 ## Wiring
 
-`~/.claude/settings.json` has a `hooks.PreToolUse` block matching `Bash` → `check-bash.sh`, `Read` → `check-read.sh`, and `Edit|Write|MultiEdit|NotebookEdit` → `check-edit-scope.sh`, and a `hooks.Stop` block → `verify-turn.sh`. Edit those blocks to disable temporarily; delete them to remove. (`check-read.sh` is invoked as `bash …/check-read.sh` so it doesn't depend on the execute bit.)
+`~/.claude/settings.json` has a `hooks.PreToolUse` block matching `Bash` → `check-bash.sh`, `Read` → `check-read.sh`, and `Edit|Write|MultiEdit|NotebookEdit` → `check-edit-scope.sh`, and a `hooks.Stop` block with two hooks → `verify-turn.sh` then `python3 …/claude-md-refcheck.py`. Edit those blocks to disable temporarily; delete them to remove. (`check-read.sh` is invoked as `bash …/check-read.sh` so it doesn't depend on the execute bit; `claude-md-refcheck.py` is invoked as `python3 …` for the same reason.)
 
 ## Dependencies
 
@@ -117,4 +129,8 @@ CLAUDE_PROJECT_DIR=/some/repo echo '{"tool_input":{"file_path":"/tmp/x"}}' \
 # verify-turn.sh: no verifier in the project -> no-op (0)
 CLAUDE_PROJECT_DIR=/tmp/none echo '{"stop_hook_active":false}' \
   | ~/.claude/hooks/verify-turn.sh; echo $?   # 0
+
+# claude-md-refcheck.py: pass a scan root as arg (clean repo -> 0)
+python3 ~/.claude/hooks/claude-md-refcheck.py /path/to/clean/repo </dev/null; echo $?   # 0
+# a repo whose CLAUDE.md names a deleted file -> 2 + report on stderr
 ```
